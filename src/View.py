@@ -14,9 +14,12 @@ class View:
         min_component_size = float(input('Enter minimum component size: '))
         return sigma, k, min_component_size
 
-    def write_image(self, output_filename: str, segmented_img: List):
+    def write_image(self, output_filename: str, segmented_matrix: List):
         """Given image matrix, writes an img file
         """
         img_path = os.path.join(self.OUTPUT_PATH, output_filename)
-        cv2.imwrite(img_path, segmented_img)
-
+        cv2.imwrite(img_path, segmented_matrix)
+        width = len(segmented_matrix[0])
+        height = len(segmented_matrix)
+        print(output_filename, ' : ', width, 'x', height, ', ' , width *
+              height, ' pixels ', sep='')

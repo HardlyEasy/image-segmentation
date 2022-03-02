@@ -5,6 +5,9 @@ import json
 
 
 class Model:
+    """An instance holds all data, there will not be a separate instance
+    per image file
+    """
     INPUT_PATH = os.path.join(os.getcwd(), '..', 'input')
     SETTINGS = json.load(open(os.path.join(os.getcwd(), '..',
                                            'settings.json')))
@@ -12,11 +15,13 @@ class Model:
     def __init__(self):
         self.sigma = Model.SETTINGS['sigma']
         self.k = Model.SETTINGS['k']
-        self.min_component_size = Model.SETTINGS['min_component_size']
+        self.min_comp_size = Model.SETTINGS['min_component_size']
 
         self.filenames = []
         self.img_matrices = []
         self.edges = []
+        self.forests = []
+        self.segmented_matrices = []
 
     def create_matrices(self):
         """Populates model with img matrices
@@ -29,7 +34,7 @@ class Model:
         self.img_matrices = img_matrices
 
     def find_matrix(self, input_filename: str) -> List:
-        """Returns image matrix
+        """Returns image matrix representation after reading image file
         """
         img_path = os.path.join(self.INPUT_PATH, input_filename)
         # pixels as BGR int, type being 'numpy.uint8'
