@@ -7,29 +7,16 @@
 # Description:
 # This program implements the algorithm described in paper titled
 # "Efficient Graph-Based Image Segmentation" by Pedro Felzenszwalb
+import os
 
 import cv2 # pip install opencv-python
 import numpy as np # pip install numpy
 import random as rng
 import operator
-import sys
-import math
-import time
-from collections import defaultdict
 
-# Constants
-BLACKOUT_FPATH = "part1_before.jpg"
-EDITED_BLACKOUT_FPATH = "part1_after.jpg"
-
-# Part 1
-def blackoutHalf():
-	img_arr = cv2.imread(BLACKOUT_FPATH) # pixels as BGR int, inttype='numpy.uint8'
-	width = len(img_arr[0])
-	height = len(img_arr)
-	for y in range (0, int(height/2)):
-		for x in range(0, width):
-			img_arr[y][x] = [0,0,0]
-	cv2.imwrite(EDITED_BLACKOUT_FPATH, img_arr)
+from src.Model import Model
+from src.View import View
+from src.Controller import RGBController, EdgeController
 	
 # Weight is defined as the total RGB difference between 2 pixels
 def calcWeight(img_arr, x1, y1, x2, y2):
@@ -204,23 +191,30 @@ def mergeSmallComponents(forest, sorted_edge_lst, min_comp_size):
 	return forest
 
 def main():
-	# PART 1
-	blackoutHalf()
-	start_time = time.time()
-	# User enters these parameters in cmd line
-	sigma = float(sys.argv[1])
-	k = float(sys.argv[2])
-	min_comp_size = float(sys.argv[3])
-	img_arr = cv2.imread(sys.argv[4]) # pixels as BGR int, inttype='numpy.uint8'
-	img_output_fpath = sys.argv[5]
+	# pixels as BGR int, inttype='numpy.uint8'
+	# img_arr = cv2.imread(sys.argv[4])
+	# img_output_fpath = sys.argv[5]
 
+	model = Model()
+	view = View()
+	rgb_controller = RGBController(model, view)
+	edge_controller = EdgeController(model, view)
+
+	rgb_controller.run()
+	edge_controller.run()
+
+	print(model.edges[0])
+
+
+	"""
 	# Setup the RGB img array
 	width = len(img_arr[0])
 	height = len(img_arr)
 	RGB_arr = cv2.cvtColor(img_arr, cv2.COLOR_BGR2RGB) # BGR to RGB
 	RGB_arr_float = np.asarray(RGB_arr,dtype=float) # RGB float, type='numpy.float64'
 	img_guassian = cv2.GaussianBlur(RGB_arr_float, (5,5), sigma)
-	
+
+
 	# Get edge list and sorted it
 	edge_lst = createEdgeList(img_guassian)
 	sorted_edge_lst = sortEdgeList(edge_lst)
@@ -232,12 +226,10 @@ def main():
 	forest = mergeSmallComponents(forest, sorted_edge_lst, min_comp_size)
 
 	segmented_img = makeImgArr(forest, width, height)
-	cv2.imwrite(img_output_fpath, segmented_img)	# sys.argv[5] is save filepath
-	end_time = time.time()
-	total_time = round( (end_time - start_time) , 2)
-	print('Total time elasped = ',total_time,'s',sep='')
+	# cv2.imwrite(img_output_fpath, segmented_img)
 	print('width x height = ', width,'x',height, sep='')
 	print('Total pixels in image = ',node_num,sep='')
+	"""
 
 if __name__ == "__main__":
 	main()

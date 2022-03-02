@@ -1,0 +1,5 @@
+{
+  "sigma": 0.5,
+  "k": 500,
+  "min_component_size": 25
+}
