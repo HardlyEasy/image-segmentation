@@ -5,37 +5,31 @@ import json
 
 
 class Model:
-    """An instance holds all data, there will not be a separate instance
-    per image file
+    """Each instance holds data related to a run of the program
+    #TODO:
+    This way doesn't make much sense now, but allows scaling/flexibiliity
+    Possible later features, multiple images, multiple cores, assignment
+    Different constraint settings for different images
     """
-    INPUT_PATH = os.path.join(os.getcwd(), '..', 'input')
-    SETTINGS = json.load(open(os.path.join(os.getcwd(), '..',
-                                           'settings.json')))
-
     def __init__(self):
-        self.sigma = Model.SETTINGS['sigma']
-        self.k = Model.SETTINGS['k']
-        self.min_comp_size = Model.SETTINGS['min_component_size']
+        input_path = os.path.join(os.getcwd(), '..', 'input')
+        self.input_path = input_path
+        self.settings = json.load(open(os.path.join(os.getcwd(), '..',
+                                                    'settings.json')))
+        images = []
+        for filename in os.listdir(self.input_path):
+            images.append(Image(input_path, filename))
+        self.images = images
 
-        self.filenames = []
-        self.img_matrices = []
-        self.edges = []
-        self.forests = []
-        self.segmented_matrices = []
 
-    def create_matrices(self):
-        """Populates model with img matrices
-        Color order is BGR
-        """
-        img_matrices = []
-        for input_filename in os.listdir(self.INPUT_PATH):
-            img_matrices.append(self.find_matrix(input_filename))
-            self.filenames.append(input_filename)
-        self.img_matrices = img_matrices
+class Image:
+    """Each instance holds data related to a single input image
+    """
+    # Instance variables
+    def __init__(self, folder_path, filename):
+        self.filename = filename
+        self.img_matrix = cv2.imread(os.path.join(folder_path, filename))
+        self.edge_list = []
+        self.forest = []
+        self.segmented_matrix = []
 
-    def find_matrix(self, input_filename: str) -> List:
-        """Returns image matrix representation after reading image file
-        """
-        img_path = os.path.join(self.INPUT_PATH, input_filename)
-        # pixels as BGR int, type being 'numpy.uint8'
-        return cv2.imread(img_path)

@@ -1,3 +1,5 @@
+import numpy
+
 from src.Forest import Forest
 import operator
 from typing import *
@@ -8,24 +10,24 @@ import random as rng
 
 class MatrixController:
     """Responsible for preparing img matrices for use by EdgeController
+    Handles multiple instances of Model
     """
     def __init__(self, model, view):
         self.model = model
         self.view = view
 
     def run(self):
-        self.model.create_matrices()
         self.prepare_matrices()
 
     def prepare_matrices(self):
-        """Revises model img matrices to prepared versions
+        """Use prepare_matrix() on all images
         """
-        for i in range(0, len(self.model.img_matrices)):
-            img_matrix = self.model.img_matrices[i]
+        for i in range(0, len(self.model.images)):
+            img_matrix = self.model.images[i].img_matrix
             prepped_matrix = self.prepare_matrix(img_matrix)
-            self.model.img_matrices[i] = prepped_matrix
+            self.model.images[i].img_matrix = prepped_matrix
 
-    def prepare_matrix(self, img_matrix: List) -> List:
+    def prepare_matrix(self, img_matrix: List) -> numpy.ndarray:
         """Prepare img matrix by:
         1) Converting BGR to RGB
         2) Convert to float, type='numpy.float64'
@@ -33,7 +35,8 @@ class MatrixController:
         """
         img_matrix = cv2.cvtColor(img_matrix, cv2.COLOR_BGR2RGB)
         img_matrix = np.asarray(img_matrix, dtype=float)
-        img_matrix = cv2.GaussianBlur(img_matrix, (5, 5), self.model.sigma)
+        img_matrix = cv2.GaussianBlur(img_matrix, (5, 5),
+                                      self.model.settings['sigma'])
         return img_matrix
 
 
@@ -48,13 +51,14 @@ class EdgeController:
     def create_edges(self):
         """
         """
-        for img_matrix in self.model.img_matrices:
-            edge_list = self.find_edge_list(img_matrix)
+        for image in self.model.images:
+            edge_list = self.find_edge_list(image.img_matrix)
             # Sort by weight
             edge_list = sorted(edge_list, key=operator.itemgetter(2))
-            self.model.edges.append(edge_list)
+            image.edge_list = edge_list
 
-    def find_edge_list(self, img_matrix):
+    def find_edge_list(self, img_matrix) -> \
+            List[tuple[int, int, numpy.float64]]:
         """
         """
         edge_list = []
@@ -92,7 +96,8 @@ class EdgeController:
                                                     x1, y1, x2, y2))
         return edge_list
 
-    def find_edge(self, img_matrix, x1, y1, x2, y2):
+    def find_edge(self, img_matrix, x1, y1, x2, y2) -> \
+            tuple[int, int, numpy.float64]:
         """ edge defined as (vertex_id1, vertex_id2, weight)
         """
         width = len(img_matrix[0])
@@ -102,7 +107,7 @@ class EdgeController:
         edge = (vertex_id1, vertex_id2, weight)
         return edge
 
-    def find_vertex_id(self, width, x, y):
+    def find_vertex_id(self, width, x, y) -> int:
         """Returns a unique vertex number
         eg, width 400, height 225
         Row0: 0, 1, ... 399
@@ -113,7 +118,7 @@ class EdgeController:
         vertex_id = (y * width) + x
         return vertex_id
 
-    def find_weight(self, img_matrix, x1, y1, x2, y2):
+    def find_weight(self, img_matrix, x1, y1, x2, y2) -> numpy.float64:
         """Weight is total RGB difference between 2 pixels
         """
         r_diff = abs(img_matrix[y1][x1][0] - img_matrix[y2][x2][0])
@@ -136,27 +141,25 @@ class SegmentController:
         1) creates forest
         2) merges smaller components in forest
         """
-        for i in range(0, len(self.model.edges)):
-            sorted_edge_list = self.model.edges[i]
-            img_matrix = self.model.img_matrices[i]
-            width = len(img_matrix[0])
-            height = len(img_matrix)
+        for image in self.model.images:
+            width = len(image.img_matrix[0])
+            height = len(image.img_matrix)
             node_num = width * height
-            forest = self.find_forest(sorted_edge_list, node_num)
-            forest = self.merge_components(forest, sorted_edge_list)
-            self.model.forests.append(forest)
+            forest = self.find_forest(image.edge_list, node_num)
+            forest = self.merge_components(forest, image.edge_list)
+            image.forest = forest
 
-    def find_threshold(self, k, size):
+    def find_threshold(self, k: int, size: int) -> float:
         threshold = k / size
         return threshold
 
-    def find_forest(self, sorted_edge_list: List, node_num):
+    def find_forest(self, sorted_edge_list: List, node_num) -> Forest:
         # every pixel is its own disjoint set
         forest = Forest(node_num)
         # 2d threshold array
         threshold = np.zeros(shape=node_num, dtype=float)
         for i in range(0, node_num):
-            threshold[i] = self.find_threshold(self.model.k, 1)
+            threshold[i] = self.find_threshold(self.model.settings['k'], 1)
         for edge in sorted_edge_list:  # smallest weights to biggest weights
             x = forest.find_set(edge[0])
             y = forest.find_set(edge[1])
@@ -166,10 +169,10 @@ class SegmentController:
                     forest.merge(x, y)  # merge the two components
                     parent = forest.find_set(x)
                     threshold[parent] = w + self.find_threshold(
-                        self.model.k, forest.get_size(parent))
+                        self.model.settings['k'], forest.get_size(parent))
         return forest
 
-    def merge_components(self, forest, sorted_edge_list):
+    def merge_components(self, forest, sorted_edge_list) -> Forest:
         """Merges smaller components together, which makes the segmented
         image clearer
         """
@@ -180,31 +183,33 @@ class SegmentController:
             if x != y:
                 x_size = forest.get_size(x)
                 y_size = forest.get_size(y)
-                if x_size < self.model.min_comp_size or \
-                        y_size < self.model.min_comp_size:
+                if x_size < self.model.settings['min_component_size'] or \
+                        y_size < self.model.settings['min_component_size']:
                     forest.merge(x, y)
         return forest
 
+
 class OutputController:
+    """Responsible for outputting segmented images
+    """
     def __init__(self, model, view):
         self.model = model
         self.view = view
 
     def run(self):
         self.make_segment_matrices()
-        for i in range(0, len(self.model.segmented_matrices)):
-            self.view.write_image(self.model.filenames[i],
-                                  self.model.segmented_matrices[i])
+        for image in self.model.images:
+            self.view.write_image(image.filename, image.segmented_matrix)
 
     def make_segment_matrices(self):
-        for i in range(0, len(self.model.forests)):
-            forest = self.model.forests[i]
-            width = len(self.model.img_matrices[i][0])
-            height = len(self.model.img_matrices[i])
-            matrix = self.find_segmented_matrix(forest, width, height)
-            self.model.segmented_matrices.append(matrix)
+        for image in self.model.images:
+            width = len(image.img_matrix[0])
+            height = len(image.img_matrix)
+            matrix = self.find_segmented_matrix(image.forest, width, height)
+            image.segmented_matrix = matrix
 
-    def find_segmented_matrix(self, forest, width, height):
+    def find_segmented_matrix(self, forest: Forest, width: int, height: int) \
+            -> numpy.ndarray:
         """Creates and fills matrix with random RGB colors
         """
         colors = []
@@ -218,9 +223,11 @@ class OutputController:
             for x in range(0, width):
                 i = forest.find_set((width * y) + x)
                 matrix[y, x] = colors[i]
-        return matrix
+        return matrix  # type 'numpy.ndarray'
 
-    def get_rgb_random(self):
+    def get_rgb_random(self) -> List[int]:
+        """Return a List containing random R, G, B ints
+        """
         rgb_random = list()
         rgb_random.append(rng.randint(0, 255))  # random red
         rgb_random.append(rng.randint(0, 255))  # random green
